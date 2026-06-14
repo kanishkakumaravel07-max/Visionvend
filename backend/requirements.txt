@@ -1,0 +1,8 @@
+Flask==3.0.2
+Flask-Cors==4.0.0
+mysql-connector-python==8.3.0
+python-dotenv==1.0.1
+ultralytics==8.1.18
+opencv-python-headless==4.9.0.80
+numpy==1.26.4
+Pillow==10.2.0
