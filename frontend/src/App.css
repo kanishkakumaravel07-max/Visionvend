@@ -174,7 +174,7 @@
   }
 
   &::before {
-    left: 0;
+    left: 1;
     border-left-color: var(--border);
   }
   &::after {
