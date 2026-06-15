@@ -1,0 +1,23 @@
+{
+  "name": "visionvend",
+  "version": "1.0.0",
+  "description": "VisionVend - AI shelf inventory monitoring",
+  "main": "index.js",
+  "scripts": {
+    "start-backend": "npm run start --prefix backend",
+    "start-frontend": "npm run dev --prefix frontend",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kanishkakumaravel07-max/Visionvend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/kanishkakumaravel07-max/Visionvend/issues"
+  },
+  "homepage": "https://github.com/kanishkakumaravel07-max/Visionvend#readme"
+}
