@@ -4,7 +4,12 @@
 
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased font-sans overflow-x-hidden;
+    background-color: #020617;
+    color: #f1f5f9;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow-x: hidden;
     background-image: 
       radial-gradient(at 0% 0%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
       radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
@@ -58,9 +63,15 @@
 }
 
 .btn-premium {
-  @apply relative overflow-hidden px-6 py-3 rounded-xl font-medium transition-all duration-300;
+  position: relative;
+  overflow: hidden;
+  padding: 0.75rem 1.5rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
   box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+  z-index: 1;
 }
 
 .btn-premium:hover {
@@ -70,12 +81,19 @@
 
 .btn-premium::after {
   content: '';
-  @apply absolute inset-0 opacity-0 transition-opacity duration-300;
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  opacity: 0;
+  transition: opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   background: linear-gradient(135deg, #06b6d4 0%, #6366f1 100%);
+  z-index: -1;
 }
 
 .btn-premium:hover::after {
-  @apply opacity-100;
+  opacity: 1;
 }
 
 /* Custom Scrollbar */
