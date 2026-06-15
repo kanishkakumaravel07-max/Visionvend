@@ -28,10 +28,16 @@ class ProductDetector:
             "Juice Carton": (249, 115, 22)   # Orange
         }
 
+        # Check if Roboflow API is configured
+        self.roboflow_api_key = os.getenv('ROBOFLOW_API_KEY')
+        
         # Try to load real YOLOv8
         try:
             from ultralytics import YOLO
-            if os.path.exists(self.weights_path):
+            if self.roboflow_api_key:
+                self.is_mock = False
+                logger.info("Roboflow YOLOv8 API integration active.")
+            elif os.path.exists(self.weights_path):
                 logger.info(f"Loading YOLOv8 model from {self.weights_path}...")
                 self.model = YOLO(self.weights_path)
                 self.is_mock = False
@@ -39,7 +45,11 @@ class ProductDetector:
             else:
                 logger.warning(f"YOLOv8 weights not found at {self.weights_path}. Running in Demo/Mock Mode.")
         except Exception as e:
-            logger.warning(f"Could not load ultralytics YOLO: {e}. Running in Demo/Mock Mode.")
+            if self.roboflow_api_key:
+                self.is_mock = False
+                logger.info("Roboflow YOLOv8 API integration active (ultralytics load skipped).")
+            else:
+                logger.warning(f"Could not load ultralytics YOLO: {e}. Running in Demo/Mock Mode.")
 
     def detect(self, image_path, output_dir):
         """
@@ -51,7 +61,14 @@ class ProductDetector:
         filename = os.path.basename(image_path)
         output_path = os.path.join(output_dir, filename)
 
-        if not self.is_mock and self.model is not None:
+        # Check if Roboflow API is configured
+        self.roboflow_api_key = os.getenv('ROBOFLOW_API_KEY')
+        self.roboflow_project = os.getenv('ROBOFLOW_PROJECT', 'visionvend')
+        self.roboflow_version = os.getenv('ROBOFLOW_VERSION', '1')
+
+        if self.roboflow_api_key:
+            return self._run_roboflow_inference(image_path, output_path)
+        elif not self.is_mock and self.model is not None:
             return self._run_real_yolo(image_path, output_path)
         else:
             return self._run_mock_detector(image_path, output_path)
@@ -179,5 +196,115 @@ class ProductDetector:
         return {
             "products": products_list,
             "total_products": len(detected_items),
+            "annotated_image": f"/static/results/{os.path.basename(output_path)}"
+        }
+
+    def _run_roboflow_inference(self, image_path, output_path):
+        """Runs inference via Roboflow Hosted API and draws high-quality annotated boxes."""
+        import base64
+        import requests
+        
+        try:
+            img = Image.open(image_path)
+        except Exception as e:
+            logger.error(f"Failed to open image for detection: {e}")
+            raise e
+
+        # Read and encode image for Roboflow API
+        try:
+            with open(image_path, "rb") as image_file:
+                image_data = image_file.read()
+            image_b64 = base64.b64encode(image_data).decode("utf-8")
+            
+            url = f"https://detect.roboflow.com/{self.roboflow_project}/{self.roboflow_version}?api_key={self.roboflow_api_key}&confidence=0.25&overlap=0.45"
+            response = requests.post(
+                url,
+                data=image_b64,
+                headers={"Content-Type": "application/x-www-form-urlencoded"}
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Roboflow API returned status {response.status_code}: {response.text}")
+                
+            results = response.json()
+        except Exception as e:
+            logger.error(f"Roboflow API inference failed: {e}. Falling back to Mock Demo Engine.")
+            return self._run_mock_detector(image_path, output_path)
+
+        draw = ImageDraw.Draw(img)
+        w, h = img.size
+        
+        predictions = results.get("predictions", [])
+        
+        # Color map for any class, dynamically generating colors if not preset
+        def get_color(class_name):
+            if class_name in self.color_map:
+                return self.color_map[class_name]
+            # Generate a consistent color based on name hash
+            h_val = hash(class_name)
+            return (
+                (h_val & 0xFF0000) >> 16,
+                (h_val & 0x00FF00) >> 8,
+                (h_val & 0x0000FF)
+            )
+
+        try:
+            font = ImageFont.load_default()
+        except:
+            font = None
+
+        # Count occurrences
+        summary = {}
+        valid_predictions_count = 0
+        for pred in predictions:
+            raw_name = pred["class"]
+            name = raw_name.title()
+            if name in ["Price", "Product"]:
+                continue
+
+            conf = pred["confidence"]
+            x = pred["x"]
+            y = pred["y"]
+            width = pred["width"]
+            height = pred["height"]
+            
+            # Convert center x/y/w/h to bounding box coordinates
+            x1 = int(x - width / 2)
+            y1 = int(y - height / 2)
+            x2 = int(x + width / 2)
+            y2 = int(y + height / 2)
+            
+            color = get_color(name)
+            
+            # Draw outer rectangle with thickness
+            for offset in range(3):
+                draw.rectangle([x1 + offset, y1 + offset, x2 - offset, y2 - offset], outline=color)
+            
+            # Draw label box
+            label_text = f"{name} {int(conf * 100)}%"
+            draw.rectangle([x1, y1 - 18, x1 + len(label_text) * 7 + 6, y1], fill=color)
+            draw.text((x1 + 4, y1 - 16), label_text, fill=(255, 255, 255), font=font)
+            
+            # Aggregate counts
+            if name not in summary:
+                summary[name] = {"count": 0, "total_conf": 0.0}
+            summary[name]["count"] += 1
+            summary[name]["total_conf"] += conf
+            valid_predictions_count += 1
+
+        # Save annotated image
+        img.save(output_path)
+        
+        products_list = []
+        for name, data in summary.items():
+            products_list.append({
+                "name": name,
+                "count": data["count"],
+                "confidence": round(data["total_conf"] / data["count"], 2)
+            })
+
+        return {
+            "products": products_list,
+            "total_products": valid_predictions_count,
             "annotated_image": f"/static/results/{os.path.basename(output_path)}"
         }
